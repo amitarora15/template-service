@@ -1,0 +1,21 @@
+spring:
+  h2:
+    console: true
+    path: /h2
+  datasource:
+    url: jdbc:h2:file:~/test
+    username: amit
+    password: 
+    driver-class-name: org.h2.Driver 
+  jackson:
+    serialization-inclusion: NON_EMPTY
+endpoints:
+  health:
+    sensitive: false
+    time-to-live: 100
+server:
+  contextPath: /api/service
+  port: '@server.port@'
+project:
+  message:
+    errorFile: '@message.error.file@'     

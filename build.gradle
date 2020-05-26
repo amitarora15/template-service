@@ -1,0 +1,134 @@
+buildscript {
+	ext {
+		springBootVersion = '1.5.9.RELEASE'
+	}
+	repositories {
+		mavenCentral()
+	}
+	dependencies {
+		classpath("org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}")
+	}
+}
+
+apply plugin: 'java'
+apply plugin: 'eclipse'
+apply plugin: 'org.springframework.boot'
+
+jar {
+	baseName = project.app
+	version = project.version
+}
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+repositories {
+	mavenCentral()
+}
+
+configurations.all {
+    exclude group: 'org.springframework.boot', module: 'spring-boot-starter-logging'
+    exclude group: 'org.springframework.boot', module: 'logback-classic'
+}
+
+dependencies {
+	
+	compile group: 'org.springframework.boot', name:'spring-boot-starter'
+	compile group: 'org.springframework.boot', name: 'spring-boot-starter-data-jpa'
+	compile group: 'org.springframework.boot', name: 'spring-boot-starter-hateoas'
+	compile group: 'org.springframework.boot', name: 'spring-boot-starter-log4j2'
+    compile group: 'org.springframework.boot', name: 'spring-boot-starter-actuator'
+    compile group: 'org.springframework.boot', name: 'spring-boot-actuator-docs'
+    
+	compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.4'
+	compile group: 'org.apache.commons', name: 'commons-collections4', version: '4.0'
+	
+    compile group: 'io.springfox', name: 'springfox-swagger2', version: '2.4.0'
+    compile group: 'io.springfox', name: 'springfox-swagger-ui', version: '2.7.0'
+	compile group: 'net.bull.javamelody', name: 'javamelody-core', version: '1.54.0'
+	
+    compile group: 'com.fasterxml.jackson.core', name: 'jackson-core', version: '2.8.5'
+	runtime group: 'com.fasterxml.jackson.dataformat', name: 'jackson-dataformat-yaml', version: '2.8.5'
+	runtime group: 'com.fasterxml.jackson.dataformat', name: 'jackson-dataformat-xml', version: '2.8.5'
+	
+	testCompile group: 'org.springframework.boot', name:'spring-boot-starter-test'
+	runtime group: 'com.h2database', name: 'h2'
+	
+	runtime files('config')
+}
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '4.4'
+}
+springBoot  {
+    buildInfo()
+    mainClass = "com.amit.service.WSTemplateApplication"
+    layout = "ZIP"
+}
+
+task configGen(type:Copy){
+
+	println "input task names... " + project.gradle.startParameter.taskNames
+
+ 	def allTasks = project.gradle.startParameter.taskNames
+ 	def validTask=false;
+    
+    for (int i = 0; i< allTasks.size() ; i ++) {
+    	if(allTasks[i]=="bootRun" ||allTasks[i]=="bootRepackage" ){
+	    	validTask =true
+    	}
+  	}
+  	
+    if(validTask.toBoolean()){    
+
+	    def propsDirPath = project.hasProperty("propsDir") ? propsDir : project.defaultPropsDir
+	    def profile = project.hasProperty("profile") ? profile : project.defaultProfile
+	    
+	    File configDir = file(project.configGenPath)
+		configDir.mkdirs()
+	    
+	    from "config"
+	    into (configDir)
+	    println "Copying all relevant files required for application at location : " + configDir.getAbsolutePath()
+	    
+	    def allProperties = new Properties()
+	    
+	    def propertiesPath = propsDirPath + "/service/" + profile + ".properties"
+	    file(propertiesPath).withInputStream{
+	        allProperties.load(it);   
+	    }
+	    
+	    filter(org.apache.tools.ant.filters.ReplaceTokens, tokens: allProperties)
+	    println "Replaced all tokens from [" + propsDirPath + "/**/ " + profile + ".properties] to all yml files at location : " + configDir.getAbsolutePath()
+	}
+}
+bootRun {
+	
+	bootRun.doFirst{
+		println 'USAGE : bootRun -Pprofile=<local/qa> -PPropsDir=<props dir path> -PdebugPort=<port>'
+		configGen.execute()
+	}
+	def profile = project.hasProperty("profile") ? profile : project.defaultProfile
+	
+	if (project.hasProperty("debugPort")){
+		jvmArgs = ['-Xdebug', '-Xrunjdwp:server=y,transport=dt_socket,suspend=n,address=' + debugPort]
+	}
+	
+	def configPath = project.configGenPath + "/service.yml"
+	
+	systemProperty "spring.profiles.active", profile
+   	systemProperty "spring.config.location", configPath
+   	systemProperty "logging.config", project.configGenPath + '/' + 'log4j2-spring.yml' 
+   	
+}
+	
+bootRepackage {	
+	doLast {
+        configGen.execute()
+        def configPath = project.configGenPath + "/service.yml"
+        
+   		println "Artifact is built at location : build/libs/" + project.name + "-" + project.version + ".jar"
+		println "Config files are present at location : " +  project.configGenPath
+		println "USAGE : nohup java -Dloader.path=config/* -Xms256m -Xmx512m  -XX:+PrintGCDetails -XX:+PrintGCDateStamps -Xloggc:" + project.name + "_gc.log -XX:+UseGCLogFileRotation -XX:NumberOfGCLogFiles=5 -XX:GCLogFileSize=20000k -XX:+UseG1GC" + " -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=" + project.name +"_java_pid.hprof -jar " + project.name + "-" + project.version + ".jar --spring.config.location=" + configPath + " --logging.config=" + project.configGenPath + '/' + 'log4j2-spring.yml' + " --spring.profiles.active=<profile> &"	
+	} 
+}

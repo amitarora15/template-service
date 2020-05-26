@@ -1,0 +1,80 @@
+Configuration:
+
+  name: Default
+  status: info
+  
+  Properties:
+    Property:
+      - name: logging-pattern
+        value: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%5p] [${sys:PID}-(%t)] [%c] : %m%n%wEx'
+      - name: log-path
+        value: '@logger.file.path@'
+      - name: archive-log-path
+        value: ${log-path}/archive
+      - name: app-rollover-days
+        value: '@logger.file.app.rollover.days@'   
+      - name: lib-rollover-days
+        value: '@logger.file.lib.rollover.days@'          
+      - name: app-rollover-size
+        value: '@logger.file.app.rollover.size@'                  
+      - name: lib-rollover-size
+        value: '@logger.file.lib.rollover.size@'                 
+      - name: archive-cleanup-days
+        value: '@logger.file.archive.cleanup.days@'
+      - name: lib-level
+        value: '@logger.lib.level@'
+      - name: app-level
+        value: '@logger.app.level@'
+      - name: application-name
+        value: '@application.name@'  
+    
+  Appenders:
+    Console:
+      name: CONSOLE
+      target: SYSTEM_OUT
+      PatternLayout:
+        Pattern: ${logging-pattern}
+    RollingFile:
+      - name: service
+        fileName: ${log-path}/${application-name}.log
+        filePattern: ${archive-log-path}/$${date:yyyy-MM}/${application-name}-%d{yyyy-MM-dd}-%i.log.gz
+        PatternLayout:
+          Pattern: ${logging-pattern}
+        policies:
+          TimeBasedTriggeringPolicy:
+            interval: ${app-rollover-days}
+            modulate: true
+          SizeBasedTriggeringPolicy:
+            size: ${app-rollover-size}
+        DefaultRollOverStrategy:
+          max: ${archive-cleanup-days}
+      - name: LIBS
+        fileName: ${log-path}/${application-name}-libs.log
+        filePattern: ${archive-log-path}/$${date:yyyy-MM}/${application-name}-libs-%d{yyyy-MM-dd}-%i.log.gz
+        PatternLayout:
+          Pattern: ${logging-pattern}
+        policies:
+          TimeBasedTriggeringPolicy:
+            interval: ${lib-rollover-days}
+            modulate: true
+          SizeBasedTriggeringPolicy:
+            size: ${lib-rollover-size}
+        DefaultRollOverStrategy:
+          max: ${archive-cleanup-days}
+
+  Loggers:
+    Root:
+      level: debug
+      AppenderRef:
+        - ref: CONSOLE
+    Logger:
+      - name: org.springframework
+        additivity: false
+        level: ${lib-level}
+        AppenderRef:
+          - ref: LIBS     
+      - name: com.amit.service
+        additivity: false
+        level: ${app-level}
+        AppenderRef:
+          - ref: service
